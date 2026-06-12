@@ -47,6 +47,14 @@ int main() {
 					in_double_quote = false;
 					has_arg = true;
 				} else {
+					if (ch == '\\' && (i+1)<input.length()) {
+						if (input[i+1]=='\"' || input[i+1]=='\\') {
+							token += input[i+1];
+							has_arg = true;
+							i++;
+							continue;
+						}
+					}
 					token += ch;
 					has_arg = true;
 				}
@@ -63,6 +71,10 @@ int main() {
 					token = "";
 					has_arg = false;
 					}
+				} else if (ch=='\\' && i<input.length()-1) {
+					token += input[i+1];
+					has_arg = true;
+					i++;
 				} else {
 					token += ch;
 					has_arg = true;
