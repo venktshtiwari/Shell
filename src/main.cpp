@@ -21,101 +21,139 @@ int main() {
     std::vector<std::string> builtins = {"echo", "type", "exit", "pwd"};
 
     while (true) {
-	std::cout << "$ ";
-	if (!std::getline(std::cin, input)) {
-	    break;
-	}
-	std::vector<std::string> args;
-	std::stringstream ss(input);
-	std::string token;
-	while (ss >> token) {
-	    args.push_back(token);
-	}
-	if (args.empty()) continue;
-	std::string cmd = args[0];
-
-	if (cmd=="exit") break;
-	else if (cmd=="echo") {
-	    for (size_t i=1; i<args.size(); i++) {
-		std::cout << args[i] << (i+1 < args.size() ? " " : "");
-	    }
-	    std::cout << std::endl;
-	}
-	else if (cmd=="pwd") {
-	    fs::path cwd = fs::current_path();
-	    std::cout << cwd.string() << std::endl;
-	}
-	else if (cmd=="cd") {
-	    if (args.size() == 1 || args[1]=="~") {
-		const char* home = getenv("HOME");
-		fs::current_path(home);
-		continue;
-	    }
-	    fs::path new_dir = args[1];
-	    if (!fs::exists(new_dir)) {
-		std::cout << "cd: " << args[1] << ": No such file or directory" << std::endl;
-		continue;
-	    }
-	    fs::current_path(new_dir);
-	}
-	else if (cmd=="type") {
-	    if (args.size() < 2) {
-		std::cout << "type: missing operand" << std::endl;
-		continue;
-	    }
-	    std::string cmd_to_check = args[1];
-	    bool found = false;
-
-	    for (const auto& str: builtins) {
-		if (cmd_to_check==str) {
-		    found = true;
-		    std::cout << cmd_to_check << " is a shell builtin" << std::endl;
-		    break;
+		std::cout << "$ ";
+		if (!std::getline(std::cin, input)) {
+			break;
 		}
-	    }
-	    if (!found) {
-		const char* path_env = std::getenv("PATH");
-		if (path_env) {
-		    std::stringstream path_ss(path_env);
-		    std::string dir;
-		    while (std::getline(path_ss, dir, ':')) {
-			if (dir.empty()) continue;
-			std::string full_path = dir + "/" + cmd_to_check;
-			if (access(full_path.c_str(), X_OK) == 0) {
-			    std::cout << cmd_to_check << " is " << full_path << std::endl;
-			    found = true;
-			    break;
+		std::vector<std::string> args;
+		std::string token = "";
+		bool in_single_quote = false;
+		bool in_double_quote = false;
+		bool has_arg = false;
+
+		for (size_t i = 0; i < input.length(); i++) {
+			char ch = input[i];
+
+			if (in_single_quote) {
+				if (ch == '\'') {
+					in_single_quote = false;
+					has_arg = true;
+				} else {
+					token += ch;
+					has_arg = true;
+				}
+			} else if (in_double_quote){
+				if (ch == '\"') {
+					in_double_quote = false;
+					has_arg = true;
+				} else {
+					token += ch;
+					has_arg = true;
+				}
+			} else {
+				if (ch == '\'') {
+					in_single_quote = true;
+					has_arg = true;
+				} else if (ch == '\"') {
+					in_double_quote = true;
+					has_arg = true;
+				} else if (ch == ' ' || ch == '\t') {
+					if (has_arg) {
+					args.push_back(token);
+					token = "";
+					has_arg = false;
+					}
+				} else {
+					token += ch;
+					has_arg = true;
+				}
 			}
-		    }
 		}
-	    }
-	    if (!found) {
-		std::cout << cmd_to_check << ": not found" << std::endl;
-	    }
-	}
-	else {
-	    std::vector<char*> c_args;
-	    for (auto& arg : args) {
-		c_args.push_back(&arg[0]);
-	    }
-	    c_args.push_back(nullptr);
+		if (has_arg) args.push_back(token);
+		if (args.empty()) continue;
+		std::string cmd = args[0];
 
-	    pid_t pid = fork();
+		if (cmd=="exit") break;
+		else if (cmd=="echo") {
+			for (size_t i=1; i<args.size(); i++) {
+				std::cout << args[i] << (i+1 < args.size() ? " " : "");
+				}
+				std::cout << std::endl;
+		}
+		else if (cmd=="pwd") {
+			fs::path cwd = fs::current_path();
+			std::cout << cwd.string() << std::endl;
+		}
+		else if (cmd=="cd") {
+			if (args.size() == 1 || args[1]=="~") {
+				const char* home = getenv("HOME");
+				fs::current_path(home);
+				continue;
+			}
+			fs::path new_dir = args[1];
+			if (!fs::exists(new_dir)) {
+				std::cout << "cd: " << args[1] << ": No such file or directory" << std::endl;
+				continue;
+			}
+			fs::current_path(new_dir);
+		}
+		else if (cmd=="type") {
+			if (args.size() < 2) {
+				std::cout << "type: missing operand" << std::endl;
+				continue;
+			}
+			std::string cmd_to_check = args[1];
+			bool found = false;
 
-	    if (pid == 0) {
-		execvp(c_args[0], c_args.data());
-		std::cout << cmd << ": command not found" << std::endl;
-		std::exit(1);
-	    }
-	    else if (pid>0) {
-		int status;
-		waitpid(pid, &status, 0);
-	    }
-	    else {
-		std::cerr << "Failed to fork process" << std::endl;
-	    }
-	}
+			for (const auto& str: builtins) {
+			if (cmd_to_check==str) {
+				found = true;
+				std::cout << cmd_to_check << " is a shell builtin" << std::endl;
+				break;
+			}
+			}
+			if (!found) {
+			const char* path_env = std::getenv("PATH");
+			if (path_env) {
+				std::stringstream path_ss(path_env);
+				std::string dir;
+				while (std::getline(path_ss, dir, ':')) {
+				if (dir.empty()) continue;
+				std::string full_path = dir + "/" + cmd_to_check;
+				if (access(full_path.c_str(), X_OK) == 0) {
+					std::cout << cmd_to_check << " is " << full_path << std::endl;
+					found = true;
+					break;
+				}
+				}
+			}
+			}
+			if (!found) {
+				std::cout << cmd_to_check << ": not found" << std::endl;
+			}
+		}
+		else {
+			std::vector<char*> c_args;
+			for (auto& arg : args) {
+				c_args.push_back(&arg[0]);
+			}
+			c_args.push_back(nullptr);
+
+			pid_t pid = fork();
+
+			if (pid == 0) {
+			execvp(c_args[0], c_args.data());
+			std::cout << cmd << ": command not found" << std::endl;
+			std::exit(1);
+			}
+			else if (pid>0) {
+				int status;
+				waitpid(pid, &status, 0);
+			}
+			else {
+				std::cerr << "Failed to fork process" << std::endl;
+			}
+		}
     }
     return 0;
 }
-
