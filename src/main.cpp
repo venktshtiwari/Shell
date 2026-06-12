@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <ostream>
 #include <string>
@@ -9,13 +10,15 @@
 #include <sstream>
 #include <sys/wait.h>
 
+namespace fs = std::filesystem;
+
 int main() {
     // Flush after every std::cout / std:cerr
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
 
     std::string input;
-    std::vector<std::string> builtins = {"echo", "type", "exit"};
+    std::vector<std::string> builtins = {"echo", "type", "exit", "pwd"};
 
     while (true) {
 	std::cout << "$ ";
@@ -37,6 +40,23 @@ int main() {
 		std::cout << args[i] << (i+1 < args.size() ? " " : "");
 	    }
 	    std::cout << std::endl;
+	}
+	else if (cmd=="pwd") {
+	    fs::path cwd = fs::current_path();
+	    std::cout << cwd.string() << std::endl;
+	}
+	else if (cmd=="cd") {
+	    if (args.size() == 1 || args[1]=="~") {
+		const char* home = getenv("HOME");
+		fs::current_path(home);
+		continue;
+	    }
+	    fs::path new_dir = args[1];
+	    if (!fs::exists(new_dir)) {
+		std::cout << "cd: " << args[1] << ": No such file or directory" << std::endl;
+		continue;
+	    }
+	    fs::current_path(new_dir);
 	}
 	else if (cmd=="type") {
 	    if (args.size() < 2) {
