@@ -88,12 +88,15 @@ int main() {
         // ---  REDIRECTION  ---
         int file_desc = -1;
         int saved_stdout = -1;
+		bool is_append = false;
         
         for (size_t i=0; i<args.size(); i++) {
-            if (args[i]==">" || args[i] == "1>" || args[i] == "2>") {
+			const std::string arg = args[i];
+            if (arg==">" || arg=="1>" || arg == "2>" || arg==">>" || arg=="1>>" || arg=="2>>") {
                 if ((i+1)<args.size()) {
-                    redirect = (args[i] == "2>") ? 2 : 1;
-                    filename = args[i+1];
+					if (arg==">>" || arg=="1>>" || arg=="2>>") is_append = true;
+					redirect = (arg == "2>" || arg == "2>>") ? 2 : 1;                    
+					filename = args[i+1];
                 }
                 else redirect = -1;
                 args.erase(args.begin()+i, args.end());
@@ -106,7 +109,8 @@ int main() {
             continue;
         }
         else if (redirect > 0) {
-            file_desc = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (!is_append) file_desc = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			else file_desc = open(filename.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
             if (file_desc < 0) {
                 std::perror("Error opening file");
                 continue;
