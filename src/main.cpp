@@ -90,9 +90,9 @@ int main() {
         int saved_stdout = -1;
         
         for (size_t i=0; i<args.size(); i++) {
-            if (args[i]==">" || args[i] == "1>") {
+            if (args[i]==">" || args[i] == "1>" || args[i] == "2>") {
                 if ((i+1)<args.size()) {
-                    redirect = 1;
+                    redirect = (args[i] == "2>") ? 2 : 1;
                     filename = args[i+1];
                 }
                 else redirect = -1;
@@ -105,22 +105,22 @@ int main() {
             std::cerr << "No file to write to." << std::endl;
             continue;
         }
-        else if (redirect == 1) {
+        else if (redirect > 0) {
             file_desc = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (file_desc < 0) {
                 std::perror("Error opening file");
                 continue;
             }
-            saved_stdout = dup(1);
-            dup2(file_desc, 1);
+			saved_stdout = dup(redirect);
+			dup2(file_desc, redirect);
         }
 
         // --- EXECUTION BLOCKS ---
         std::string cmd = args[0];
         
         if (cmd=="exit") {
-            if (redirect == 1) {
-                dup2(saved_stdout, 1);
+            if (redirect > 0) {
+				dup2(saved_stdout, redirect);
                 close(file_desc);
                 close(saved_stdout);
             }
@@ -143,7 +143,7 @@ int main() {
             } else {
                 fs::path new_dir = args[1];
                 if (!fs::exists(new_dir)) {
-                    std::cout << "cd: " << args[1] << ": No such file or directory" << std::endl;
+                    std::cerr << "cd: " << args[1] << ": No such file or directory" << std::endl;
                 } else {
                     fs::current_path(new_dir);
                 }
@@ -151,7 +151,7 @@ int main() {
         }
         else if (cmd=="type") {
             if (args.size() < 2) {
-                std::cout << "type: missing operand" << std::endl;
+                std::cerr << "type: missing operand" << std::endl;
             } else {
                 std::string cmd_to_check = args[1];
                 bool found = false;
@@ -180,7 +180,7 @@ int main() {
                     }
                 }
                 if (!found) {
-                    std::cout << cmd_to_check << ": not found" << std::endl;
+                    std::cerr << cmd_to_check << ": not found" << std::endl;
                 }
             }
         }
@@ -194,12 +194,12 @@ int main() {
             pid_t pid = fork();
 
             if (pid == 0) {
-                if (redirect==1) {
+                if (redirect>0) {
                     close(file_desc);
                     close(saved_stdout);
                 }
                 execvp(c_args[0], c_args.data());
-                std::cout << cmd << ": command not found" << std::endl;
+                std::cerr << cmd << ": command not found" << std::endl;
                 std::exit(1);
             }
             else if (pid>0) {
@@ -211,9 +211,10 @@ int main() {
             }
         }
         
-        if (redirect == 1) {
-            std::cout << std::flush;
-            dup2(saved_stdout, 1);
+        if (redirect > 0) {
+			if (redirect == 1) std::cout << std::flush;
+            else std::cerr << std::flush;            
+			dup2(saved_stdout, redirect);
             close(file_desc);
             close(saved_stdout);
         }
